@@ -1,30 +1,65 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:diegapp/main.dart';
+import 'package:diegapp/models/form_model.dart';
+import 'package:diegapp/utils/calculations.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('calculations', () {
+    FormModel empty() => FormModel.empty();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('campos vacíos → 0%', () {
+      final f = empty();
+      expect(calcularCumplimientoNuevoVenue(f), 0.0);
+      expect(calcularCumplimientoNuevoEvento(f), 0.0);
+      expect(calcularCumplimientoModificables(f), 0.0);
+      expect(calcularTotal(f), 0.0);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('espacios en blanco se consideran vacíos', () {
+      final f = empty().copyWith(
+        venue: '   ',
+        mapa: '\t\n',
+        taquilla: 'Taquilla real',
+      );
+      expect(calcularCumplimientoNuevoVenue(f), closeTo(33.33, 0.01));
+    });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    test('todos los campos de un grupo rellenos → 100%', () {
+      final f = empty().copyWith(
+        venue: 'A',
+        mapa: 'B',
+        taquilla: 'C',
+      );
+      expect(calcularCumplimientoNuevoVenue(f), 100.0);
+    });
+
+    test('total refleja los 12 campos', () {
+      final f = empty().copyWith(
+        venue: 'a',
+        mapa: 'b',
+        taquilla: 'c',
+        configuracionCanales: 'd',
+        configuracionShow: 'e',
+        tyc: 'f',
+        imagenes: 'g',
+        tarifas: 'h',
+        holds: 'i',
+        preventas: 'j',
+        validadores: 'k',
+        mapaSilleteria: 'l',
+      );
+      expect(calcularTotal(f), 100.0);
+    });
+
+    test('total parcial: 6 de 12 → 50%', () {
+      final f = empty().copyWith(
+        venue: 'a',
+        mapa: 'b',
+        taquilla: 'c',
+        configuracionCanales: 'd',
+        configuracionShow: 'e',
+        tyc: 'f',
+      );
+      expect(calcularTotal(f), 50.0);
+    });
   });
 }
