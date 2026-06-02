@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../providers/form_list_provider.dart';
 import '../../providers/form_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/ui_helpers.dart';
 import '../../widgets/glass_button.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_scaffold.dart';
@@ -23,6 +26,12 @@ class FormScreen extends StatefulWidget {
 
 class _FormScreenState extends State<FormScreen> {
   bool _initialized = false;
+
+  String _fmtDate(String raw) {
+    final d = DateTime.tryParse(raw);
+    if (d == null) return raw;
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
 
   @override
   void didChangeDependencies() {
@@ -54,25 +63,58 @@ class _FormScreenState extends State<FormScreen> {
   }
 
   Future<void> _save() async {
+    HapticFeedback.lightImpact();
     final provider = context.read<FormProvider>();
     final c = provider.current;
     if (c == null) return;
     if (c.especialista.trim().isEmpty || c.evento.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Especialista y Evento son obligatorios'),
-        ),
+      HapticFeedback.heavyImpact();
+      showAppSnackBar(
+        context,
+        const Text('Especialista y Evento son obligatorios'),
+        duration: const Duration(seconds: 2),
       );
       return;
     }
+    final wasNew = c.id == null;
     final id = await provider.save();
     if (!mounted) return;
     if (id != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Formulario guardado')),
-      );
+      HapticFeedback.mediumImpact();
       context.go('/form/$id');
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        const Text('Formulario guardado ✅'),
+        action: wasNew
+            ? SnackBarAction(
+                label: 'Deshacer',
+                onPressed: () async {
+                  HapticFeedback.selectionClick();
+                  final listProvider = context.read<FormListProvider>();
+                  final router = GoRouter.of(context);
+                  await listProvider.deleteForm(id);
+                  if (!mounted) return;
+                  router.go('/');
+                },
+              )
+            : null,
+      );
     }
+  }
+
+  Future<void> _deleteFromEdit(int id) async {
+    final provider = context.read<FormProvider>();
+    final form = provider.current;
+    if (form == null) return;
+    final confirmed = await confirmDelete(context, form);
+    if (confirmed != true || !mounted) return;
+    HapticFeedback.mediumImpact();
+    await context.read<FormListProvider>().deleteForm(id);
+    if (!mounted) return;
+    context.go('/');
+    if (!context.mounted) return;
+    showAppSnackBar(context, const Text('Formulario eliminado'));
   }
 
   @override
@@ -95,6 +137,21 @@ class _FormScreenState extends State<FormScreen> {
               onPressed: () => context.canPop() ? context.pop() : context.go('/'),
             ),
             actions: [
+              if (widget.isEditing && c?.id != null)
+                IconButton(
+                  tooltip: 'Exportar PDF',
+                  onPressed: () => context.push('/pdf-preview/${c!.id}'),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                ),
+              if (widget.isEditing && c?.id != null)
+                IconButton(
+                  tooltip: 'Eliminar',
+                  onPressed: () => _deleteFromEdit(c!.id!),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: AppTheme.dangerColor,
+                  ),
+                ),
               TextButton.icon(
                 onPressed: provider.isSaving ? null : _save,
                 icon: const Icon(Icons.check, color: Colors.white),
@@ -127,6 +184,9 @@ class _FormScreenState extends State<FormScreen> {
   Widget _buildForm(BuildContext context, FormProvider provider) {
     final c = provider.current!;
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       child: Column(
         children: [
@@ -145,7 +205,7 @@ class _FormScreenState extends State<FormScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'FECHA: ${c.fecha}',
+                          'FECHA: ${_fmtDate(c.fecha)}',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'providers/dashboard_provider.dart';
 import 'providers/form_list_provider.dart';
 import 'providers/form_provider.dart';
+import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 import 'views/dashboard/dashboard_screen.dart';
 import 'views/form/form_screen.dart';
 import 'views/list/form_list_screen.dart';
 import 'views/pdf/pdf_preview_screen.dart';
+import 'widgets/page_transitions.dart';
 
 class DiegApp extends StatelessWidget {
   const DiegApp({super.key});
@@ -18,9 +21,11 @@ class DiegApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => FormListProvider()..loadDistinctValues()),
         ChangeNotifierProvider(create: (_) => FormProvider()),
+        ChangeNotifierProvider(create: (_) => DashboardProvider()..loadDistinctValues()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: Builder(
-        builder: (innerContext) {
+      child: Consumer<ThemeProvider>(
+        builder: (innerContext, themeProvider, _) {
           final router = GoRouter(
             initialLocation: '/',
             routes: [
@@ -44,24 +49,24 @@ class DiegApp extends StatelessWidget {
               ),
               GoRoute(
                 path: '/form',
-                builder: (context, state) {
+                pageBuilder: (context, state) {
                   final provider = context.read<FormProvider>();
                   provider.createNew();
-                  return const FormScreen();
+                  return const FadeSlidePage(child: FormScreen());
                 },
               ),
               GoRoute(
                 path: '/form/:id',
-                builder: (context, state) {
+                pageBuilder: (context, state) {
                   final id = int.tryParse(state.pathParameters['id'] ?? '');
-                  return FormScreen(formId: id);
+                  return FadeSlidePage(child: FormScreen(formId: id));
                 },
               ),
               GoRoute(
                 path: '/pdf-preview/:id',
-                builder: (context, state) {
+                pageBuilder: (context, state) {
                   final id = int.tryParse(state.pathParameters['id'] ?? '');
-                  return PdfPreviewScreen(formId: id);
+                  return FadeSlidePage(child: PdfPreviewScreen(formId: id));
                 },
               ),
             ],
@@ -72,7 +77,7 @@ class DiegApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
-            themeMode: ThemeMode.system,
+            themeMode: themeProvider.themeMode,
             routerConfig: router,
           );
         },

@@ -9,7 +9,7 @@ class GlassScaffold extends StatelessWidget {
     this.bottomNavigationBar,
     this.floatingActionButton,
     this.resizeToAvoidBottomInset,
-    this.extendBodyBehindAppBar = true,
+    this.extendBodyBehindAppBar = false,
   });
 
   final Widget body;
@@ -29,7 +29,11 @@ class GlassScaffold extends StatelessWidget {
         extendBodyBehindAppBar: extendBodyBehindAppBar,
         resizeToAvoidBottomInset: resizeToAvoidBottomInset,
         appBar: appBar,
-        body: body,
+        body: SafeArea(
+          top: false,
+          bottom: bottomNavigationBar == null,
+          child: body,
+        ),
         bottomNavigationBar: bottomNavigationBar,
         floatingActionButton: floatingActionButton,
       ),

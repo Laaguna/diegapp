@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/form_model.dart';
 import '../../providers/form_list_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/ui_helpers.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_scaffold.dart';
 
@@ -67,8 +70,9 @@ class _FormListScreenState extends State<FormListScreen> {
                   final dup = await provider.duplicateForm(form.id!);
                   if (!mounted) return;
                   if (dup != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Duplicado como #${dup.id}')),
+                    showAppSnackBar(
+                      context,
+                      Text('Duplicado como #${dup.id}'),
                     );
                   }
                 },
@@ -90,30 +94,14 @@ class _FormListScreenState extends State<FormListScreen> {
                 ),
                 onTap: () async {
                   Navigator.of(sheetCtx).pop();
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (dCtx) => AlertDialog(
-                      title: const Text('¿Eliminar formulario?'),
-                      content: Text(
-                        'Se eliminará "${form.evento.isEmpty ? 'Sin nombre' : form.evento}". Esta acción no se puede deshacer.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(dCtx).pop(false),
-                          child: const Text('Cancelar'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(dCtx).pop(true),
-                          child: const Text(
-                            'Eliminar',
-                            style: TextStyle(color: AppTheme.dangerColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
+                  if (await confirmDelete(context, form) == true) {
+                    HapticFeedback.mediumImpact();
                     await provider.deleteForm(form.id!);
+                    if (!mounted) return;
+                    showAppSnackBar(
+                      context,
+                      const Text('Formulario eliminado'),
+                    );
                   }
                 },
               ),
@@ -130,6 +118,13 @@ class _FormListScreenState extends State<FormListScreen> {
       appBar: AppBar(
         title: const Text('DiegApp'),
         actions: [
+          Consumer<ThemeProvider>(
+            builder: (context, theme, _) => IconButton(
+              tooltip: theme.label,
+              onPressed: theme.cycle,
+              icon: Icon(theme.icon),
+            ),
+          ),
           IconButton(
             tooltip: _filtersExpanded ? 'Ocultar filtros' : 'Mostrar filtros',
             onPressed: () =>
@@ -391,40 +386,86 @@ class _FormCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
+  String _fmtDateLocal(String raw) {
+    final d = DateTime.tryParse(raw);
+    if (d == null) return raw;
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = AppTheme.cumplimientoColor(form.total);
     final title = form.evento.isEmpty ? 'Sin nombre' : form.evento;
     return GestureDetector(
       onLongPress: onLongPress,
-      child: GlassCard(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
+        child: GlassCard(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Exportar PDF',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => context.push('/pdf-preview/${form.id}'),
+                        icon: const Icon(Icons.picture_as_pdf_outlined,
+                            size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () async {
+                          HapticFeedback.selectionClick();
+                          if (await confirmDelete(context, form) != true) {
+                            return;
+                          }
+                          HapticFeedback.mediumImpact();
+                          if (!context.mounted) return;
+                          await context
+                              .read<FormListProvider>()
+                              .deleteForm(form.id!);
+                          if (!context.mounted) return;
+                          showAppSnackBar(
+                            context,
+                            const Text('Formulario eliminado'),
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color: AppTheme.dangerColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${form.fecha}  ·  ${form.especialista.isEmpty ? 'Sin especialista' : form.especialista}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_fmtDateLocal(form.fecha)}  ·  ${form.especialista.isEmpty ? 'Sin especialista' : form.especialista}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(

@@ -61,5 +61,34 @@ void main() {
       );
       expect(calcularTotal(f), 50.0);
     });
+
+    test('nuevo evento: 5 campos', () {
+      final f = empty().copyWith(
+        configuracionCanales: 'x',
+        configuracionShow: 'x',
+      );
+      expect(calcularCumplimientoNuevoEvento(f), 40.0);
+    });
+
+    test('modificables: 4 campos', () {
+      final f = empty().copyWith(
+        holds: 'h',
+        preventas: 'p',
+        validadores: 'v',
+        mapaSilleteria: 'm',
+      );
+      expect(calcularCumplimientoModificables(f), 100.0);
+    });
+
+    test('cumplimientoValues devuelve 4 entradas', () {
+      final values = cumplimientoValues(empty());
+      expect(values.keys, containsAll(<String>{
+        'nuevo_venue',
+        'nuevo_evento',
+        'modificables',
+        'total',
+      }));
+      expect(values.length, 4);
+    });
   });
 }
